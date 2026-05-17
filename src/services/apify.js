@@ -73,13 +73,13 @@ export async function searchAds({ query = '', country = 'BR', limit = 20 } = {})
     await abortRun(runId);
   }
 
-  // Usa os resultados parciais que foram coletados até o abort
-  // ?limit=N garante que pegamos no máximo o que o usuário pediu
-  const { items } = await apiFetch(
+  // Apify retorna array direto — NÃO é { items: [...] }
+  const raw = await apiFetch(
     `/datasets/${datasetId}/items?clean=true&format=json&limit=${limit}`
   );
 
-  const results = (items || []).map(normalizeAd);
+  const items = Array.isArray(raw) ? raw : (raw?.items || []);
+  const results = items.map(normalizeAd);
 
   if (results.length === 0) {
     throw new Error(
