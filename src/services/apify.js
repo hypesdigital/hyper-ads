@@ -59,7 +59,7 @@ export async function searchAds({ query = '', country = 'BR', limit = 20 } = {})
         totalRecordsRequired: limit,
         limitPerUrl: limit,
         maxResults: limit,
-        scrapeAdDetails: false,
+        scrapeAdDetails: true,
       }),
     }
   );
@@ -115,54 +115,82 @@ export async function searchAds({ query = '', country = 'BR', limit = 20 } = {})
   return results;
 }
 
+// Converte Unix timestamp (segundos) ou string ISO para YYYY-MM-DD
+function parseAdDate(val) {
+  if (!val) return '';
+  const num = Number(val);
+  // Se for número grande → Unix timestamp em SEGUNDOS → converte para ms
+  if (!isNaN(num) && num > 1_000_000_000) {
+    return new Date(num * 1000).toISOString().slice(0, 10);
+  }
+  // Já é string de data
+  const d = new Date(val);
+  return isNaN(d.getTime()) ? '' : d.toISOString().slice(0, 10);
+}
+
 function normalizeAd(raw) {
-  const startDate = raw.startDate || raw.adCreationTime || raw.start_date || '';
+  const startDate = parseAdDate(
+    raw.start_date || raw.startDate || raw.adCreationTime || raw.ad_creation_time || ''
+  );
   const daysRunning = startDate
     ? Math.max(0, Math.floor((Date.now() - new Date(startDate).getTime()) / 86400000))
     : 0;
 
+  const id = raw.ad_archive_id || raw.adArchiveID || raw.id || String(Math.random());
+
+  // Copy: snapshot tem o texto real; sem snapshot, usa campos flat
+  const copyText =
+    raw.snapshot?.body?.text ||
+    raw.snapshot?.cards?.[0]?.body ||
+    raw.ad_creative_body ||
+    raw.body ||
+    '';
+
+  // Thumbnail: prioriza snapshot, depois campos flat
+  const thumbnail =
+    raw.snapshot?.cards?.[0]?.resizedImageUrl ||
+    raw.snapshot?.cards?.[0]?.originalImageUrl ||
+    raw.snapshot?.images?.[0]?.resizedImageUrl ||
+    raw.snapshot?.videos?.[0]?.videoPreviewImageUrl ||
+    raw.image_url ||
+    raw.creative_media_url ||
+    `https://picsum.photos/seed/${id}/400/300`;
+
+  const isVideo =
+    !!(raw.snapshot?.cards?.[0]?.videoHdUrl || raw.snapshot?.cards?.[0]?.videoSdUrl) ||
+    (raw.snapshot?.videos?.length > 0) ||
+    raw.ad_creative_link_captions?.includes?.('video');
+
   return {
-    id: raw.adArchiveID || raw.ad_archive_id || raw.id || String(Math.random()),
-    advertiserName: raw.pageName || raw.page_name || raw.advertiserName || 'Anunciante',
-    advertiserPage: raw.pageProfileUri || raw.page_profile_uri || '#',
+    id,
+    advertiserName:
+      raw.page_name || raw.pageName || raw.snapshot?.page_name || 'Anunciante',
+    advertiserPage:
+      raw.snapshot?.page_profile_uri || raw.pageProfileUri || raw.page_profile_uri || '#',
     advertiserAvatar:
+      raw.snapshot?.page_profile_picture_url ||
       raw.pageProfilePictureURL ||
-      raw.page_profile_picture_url ||
-      `https://i.pravatar.cc/40?u=${raw.adArchiveID || raw.id}`,
-    thumbnail:
-      raw.snapshot?.cards?.[0]?.resizedImageUrl ||
-      raw.snapshot?.images?.[0]?.resizedImageUrl ||
-      raw.creative_media_url ||
-      `https://picsum.photos/seed/${raw.adArchiveID || raw.id}/400/300`,
-    isVideo:
-      !!raw.snapshot?.cards?.[0]?.videoHdUrl ||
-      (raw.snapshot?.videos?.length > 0) ||
-      raw.contentType === 'VIDEO',
-    status: raw.isActive || raw.is_active || raw.adActiveStatus === 'ACTIVE'
-      ? 'active' : 'inactive',
+      `https://i.pravatar.cc/40?u=${id}`,
+    thumbnail,
+    isVideo,
+    status: (raw.is_active ?? raw.isActive ?? true) ? 'active' : 'inactive',
     daysRunning,
-    adCount: raw.adCount || raw.total_ads_count || raw.collationCount || 1,
-    platforms: normalizePlatforms(raw.publisherPlatform || raw.publisher_platform),
-    language: (raw.languageCode || raw.language_code || 'PT').toUpperCase(),
+    adCount: raw.collation_count || raw.adCount || raw.collationCount || 1,
+    platforms: normalizePlatforms(raw.publisher_platform || raw.publisherPlatform),
+    language: (raw.language_code || raw.languageCode || 'PT').toUpperCase().slice(0, 2),
     gateway: detectGateway(raw),
     productType: detectProductType(raw),
     siteType: 'Landing Page',
     publishedAt: startDate || new Date().toISOString().slice(0, 10),
-    copy:
-      raw.snapshot?.body?.text ||
-      raw.ad_creative_body ||
-      raw.adCreativeBody ||
-      raw.caption || '',
-    fullCopy:
-      raw.snapshot?.body?.text ||
-      raw.ad_creative_body ||
-      raw.adCreativeBody ||
-      raw.caption || '',
+    copy: copyText,
+    fullCopy: copyText,
     salesPageUrl:
       raw.snapshot?.cards?.[0]?.linkUrl ||
-      raw.website_url ||
-      raw.websiteURL || '#',
-    adLibraryUrl: `https://www.facebook.com/ads/library/?id=${raw.adArchiveID || raw.id}`,
+      raw.snapshot?.link_url ||
+      raw.website_url || '#',
+    adLibraryUrl:
+      raw.ad_library_url ||
+      `https://www.facebook.com/ads/library/?id=${id}`,
   };
 }
 
