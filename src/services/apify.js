@@ -26,13 +26,10 @@ async function apiFetch(path, options = {}) {
   return res.json();
 }
 
-// Aborta o run para parar de gastar créditos
 async function abortRun(runId) {
   try {
     await apiFetch(`/actor-runs/${runId}/abort`, { method: 'POST' });
-  } catch (_) {
-    // silencia — se já terminou, tudo bem
-  }
+  } catch (_) { /* silencia */ }
 }
 
 function buildAdLibraryUrl({ query = '', country = 'BR' } = {}) {
@@ -40,51 +37,58 @@ function buildAdLibraryUrl({ query = '', country = 'BR' } = {}) {
     active_status: 'active',
     ad_type: 'all',
     country,
-    q: query || 'curso',
+    q: query,
     media_type: 'all',
   });
   return `https://www.facebook.com/ads/library/?${params.toString()}`;
 }
 
 export async function searchAds({ query = '', country = 'BR', limit = 20 } = {}) {
-  const url = buildAdLibraryUrl({ query, country });
+  const adLibraryUrl = buildAdLibraryUrl({ query, country });
 
-  // waitForFinish=90 → Apify aguarda até 90s server-side e devolve o run
-  // assim não fazemos polling e controlamos o tempo exato
+  // Inicia o run e aguarda no máx. 20s server-side
+  // Após 20s o actor é abortado PELO NOSSO CÓDIGO — não deixamos ele continuar
   const { data: run } = await apiFetch(
-    `/acts/${ACTOR}/runs?waitForFinish=90`,
+    `/acts/${ACTOR}/runs?waitForFinish=20`,
     {
       method: 'POST',
       body: JSON.stringify({
-        urls: [{ url }],
-        // Enviamos o limite pelos dois campos que o actor pode aceitar
+        // Tentamos os dois formatos de URL que o actor pode aceitar
+        startUrls: [{ url: adLibraryUrl }],
+        urls: [{ url: adLibraryUrl }],
+        // Limite pelos três nomes de campo possíveis
         totalRecordsRequired: limit,
-        maxResults: limit,
         limitPerUrl: limit,
+        maxResults: limit,
         scrapeAdDetails: false,
       }),
     }
   );
 
-  // Se ainda estiver rodando após 90s → ABORTA para não gastar mais
+  const runId = run.id;
+  const datasetId = run.defaultDatasetId;
+
+  // Se ainda estiver rodando após 20s → aborta imediatamente para parar o custo
   if (run.status === 'RUNNING' || run.status === 'READY') {
-    await abortRun(run.id);
+    await abortRun(runId);
+  }
+
+  // Usa os resultados parciais que foram coletados até o abort
+  // ?limit=N garante que pegamos no máximo o que o usuário pediu
+  const { items } = await apiFetch(
+    `/datasets/${datasetId}/items?clean=true&format=json&limit=${limit}`
+  );
+
+  const results = (items || []).map(normalizeAd);
+
+  if (results.length === 0) {
     throw new Error(
-      `A busca ultrapassou 90 segundos e foi interrompida para proteger seus créditos. ` +
-      `Tente um termo mais específico ou um limite menor.`
+      'Nenhum resultado encontrado para este termo. ' +
+      'Tente palavras diferentes (ex: "curso ingles", "emagrecimento", "tráfego pago").'
     );
   }
 
-  if (['FAILED', 'ABORTED', 'TIMED-OUT'].includes(run.status)) {
-    throw new Error(`A busca falhou (${run.status}). Tente novamente com outro termo.`);
-  }
-
-  // Busca apenas N itens do dataset — mesmo que o actor tenha coletado mais
-  const { items } = await apiFetch(
-    `/datasets/${run.defaultDatasetId}/items?clean=true&format=json&limit=${limit}`
-  );
-
-  return (items || []).map(normalizeAd);
+  return results;
 }
 
 function normalizeAd(raw) {
@@ -110,7 +114,8 @@ function normalizeAd(raw) {
       !!raw.snapshot?.cards?.[0]?.videoHdUrl ||
       (raw.snapshot?.videos?.length > 0) ||
       raw.contentType === 'VIDEO',
-    status: raw.isActive || raw.is_active || raw.adActiveStatus === 'ACTIVE' ? 'active' : 'inactive',
+    status: raw.isActive || raw.is_active || raw.adActiveStatus === 'ACTIVE'
+      ? 'active' : 'inactive',
     daysRunning,
     adCount: raw.adCount || raw.total_ads_count || raw.collationCount || 1,
     platforms: normalizePlatforms(raw.publisherPlatform || raw.publisher_platform),

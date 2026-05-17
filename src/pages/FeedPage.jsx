@@ -204,13 +204,9 @@ export default function FeedPage({ search, onTabChange }) {
         <div className="flex items-center gap-2 px-4 py-2 rounded-xl mb-4 text-xs font-medium"
           style={{ backgroundColor: '#F5F5F0', color: '#6B7280' }}>
           <AlertCircle size={12} />
-          Custo estimado desta busca:{' '}
-          <strong className="text-gray-800">
-            ~${((limit / 1000) * 0.75).toFixed(3)}
-          </strong>
-          {' '}· Limite: <strong className="text-gray-800">{limit} anúncios</strong>
-          {' '}· Mín. ativos: <strong className="text-gray-800">{filters.adsMin || MIN_ADS_DEFAULT}</strong>
-          {' '}· Timeout: <strong className="text-gray-800">90s</strong>
+          Busca abortada em <strong className="text-gray-800">20s</strong> para controlar custo
+          {' '}· Exibe até <strong className="text-gray-800">{limit} anúncios</strong>
+          {' '}· Custo máx. estimado: <strong className="text-gray-800">~$0.05</strong> por busca
         </div>
       )}
 
