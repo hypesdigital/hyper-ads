@@ -46,10 +46,10 @@ function buildAdLibraryUrl({ query = '', country = 'BR' } = {}) {
 export async function searchAds({ query = '', country = 'BR', limit = 20 } = {}) {
   const adLibraryUrl = buildAdLibraryUrl({ query, country });
 
-  // Inicia o run e aguarda no máx. 20s server-side
-  // Após 20s o actor é abortado PELO NOSSO CÓDIGO — não deixamos ele continuar
+  // Inicia o run e aguarda no máx. 45s server-side
+  // Actor leva ~11s só de startup — 45s garante coleta de ~50-100 ads antes do abort
   const { data: run } = await apiFetch(
-    `/acts/${ACTOR}/runs?waitForFinish=20`,
+    `/acts/${ACTOR}/runs?waitForFinish=45`,
     {
       method: 'POST',
       body: JSON.stringify({

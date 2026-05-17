@@ -8,12 +8,12 @@ import SkeletonCard from '../components/SkeletonCard';
 import { mockAds, statsData } from '../data/mockAds';
 import { searchAds, getToken } from '../services/apify';
 
-const LIMIT_OPTIONS = [10, 20, 30, 50];
-const MIN_ADS_DEFAULT = 10; // só traz criativos com 10+ anúncios ativos
+const LIMIT_OPTIONS = [20, 30, 50];
+const MIN_ADS_DEFAULT = 0; // sem filtro padrão — o campo collation_count é quase sempre 1
 
 const defaultFilters = {
   daysMin: '', daysMax: '',
-  adsMin: String(MIN_ADS_DEFAULT), adsMax: '',
+  adsMin: '', adsMax: '',  // sem mínimo padrão
   dateFrom: '', dateTo: '',
   adType: 'Todos', language: 'Todos',
   gateway: 'Todos', productType: 'Todos',
@@ -204,9 +204,9 @@ export default function FeedPage({ search, onTabChange }) {
         <div className="flex items-center gap-2 px-4 py-2 rounded-xl mb-4 text-xs font-medium"
           style={{ backgroundColor: '#F5F5F0', color: '#6B7280' }}>
           <AlertCircle size={12} />
-          Busca abortada em <strong className="text-gray-800">20s</strong> para controlar custo
+          Busca abortada em <strong className="text-gray-800">45s</strong> para controlar custo
           {' '}· Exibe até <strong className="text-gray-800">{limit} anúncios</strong>
-          {' '}· Custo máx. estimado: <strong className="text-gray-800">~$0.05</strong> por busca
+          {' '}· Custo máx. estimado: <strong className="text-gray-800">~$0.08</strong> por busca
         </div>
       )}
 
