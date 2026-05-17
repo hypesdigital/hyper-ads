@@ -118,8 +118,8 @@ export default function SettingsPage() {
         </ol>
         <div className="mt-4 p-3 rounded-xl text-xs font-medium text-amber-700"
           style={{ backgroundColor: '#FFF8E0' }}>
-          <strong>Nota:</strong> Na versão MVP os dados são mockados. A integração real com a Apify
-          estará disponível na v2.
+          <strong>Segurança:</strong> O token é salvo apenas no seu navegador (localStorage) e nunca
+          enviado para nenhum servidor. Não compartilhe este dispositivo com outras pessoas.
         </div>
       </div>
     </div>
