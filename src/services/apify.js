@@ -26,24 +26,18 @@ async function apiFetch(path, options = {}) {
   return res.json();
 }
 
-async function pollRun(runId, intervalMs = 3000, maxWaitMs = 120000) {
-  const start = Date.now();
-  while (Date.now() - start < maxWaitMs) {
-    const { data } = await apiFetch(`/actor-runs/${runId}`);
-    if (data.status === 'SUCCEEDED') return data.defaultDatasetId;
-    if (['FAILED', 'ABORTED', 'TIMED-OUT'].includes(data.status)) {
-      throw new Error(`Run ${data.status.toLowerCase()}. Verifique os parâmetros de busca.`);
-    }
-    await new Promise(r => setTimeout(r, intervalMs));
+// Aborta o run para parar de gastar créditos
+async function abortRun(runId) {
+  try {
+    await apiFetch(`/actor-runs/${runId}/abort`, { method: 'POST' });
+  } catch (_) {
+    // silencia — se já terminou, tudo bem
   }
-  throw new Error('Timeout: a busca demorou mais de 2 minutos.');
 }
 
-// Monta a URL da Ad Library com o termo de busca
-function buildAdLibraryUrl({ query = '', country = 'BR', activeStatus = 'ACTIVE' } = {}) {
-  const status = activeStatus === 'ACTIVE' ? 'active' : 'all';
+function buildAdLibraryUrl({ query = '', country = 'BR' } = {}) {
   const params = new URLSearchParams({
-    active_status: status,
+    active_status: 'active',
     ad_type: 'all',
     country,
     q: query || 'curso',
@@ -52,28 +46,51 @@ function buildAdLibraryUrl({ query = '', country = 'BR', activeStatus = 'ACTIVE'
   return `https://www.facebook.com/ads/library/?${params.toString()}`;
 }
 
-export async function searchAds({ query = '', country = 'BR', activeStatus = 'ACTIVE', limit = 30 } = {}) {
-  const url = buildAdLibraryUrl({ query, country, activeStatus });
+export async function searchAds({ query = '', country = 'BR', limit = 20 } = {}) {
+  const url = buildAdLibraryUrl({ query, country });
 
-  const { data: run } = await apiFetch(`/acts/${ACTOR}/runs`, {
-    method: 'POST',
-    body: JSON.stringify({
-      urls: [{ url }],
-      totalRecordsRequired: limit,
-      scrapeAdDetails: false,
-    }),
-  });
+  // waitForFinish=90 → Apify aguarda até 90s server-side e devolve o run
+  // assim não fazemos polling e controlamos o tempo exato
+  const { data: run } = await apiFetch(
+    `/acts/${ACTOR}/runs?waitForFinish=90`,
+    {
+      method: 'POST',
+      body: JSON.stringify({
+        urls: [{ url }],
+        // Enviamos o limite pelos dois campos que o actor pode aceitar
+        totalRecordsRequired: limit,
+        maxResults: limit,
+        limitPerUrl: limit,
+        scrapeAdDetails: false,
+      }),
+    }
+  );
 
-  const datasetId = await pollRun(run.id);
+  // Se ainda estiver rodando após 90s → ABORTA para não gastar mais
+  if (run.status === 'RUNNING' || run.status === 'READY') {
+    await abortRun(run.id);
+    throw new Error(
+      `A busca ultrapassou 90 segundos e foi interrompida para proteger seus créditos. ` +
+      `Tente um termo mais específico ou um limite menor.`
+    );
+  }
 
-  const { items } = await apiFetch(`/datasets/${datasetId}/items?clean=true&format=json`);
+  if (['FAILED', 'ABORTED', 'TIMED-OUT'].includes(run.status)) {
+    throw new Error(`A busca falhou (${run.status}). Tente novamente com outro termo.`);
+  }
+
+  // Busca apenas N itens do dataset — mesmo que o actor tenha coletado mais
+  const { items } = await apiFetch(
+    `/datasets/${run.defaultDatasetId}/items?clean=true&format=json&limit=${limit}`
+  );
+
   return (items || []).map(normalizeAd);
 }
 
 function normalizeAd(raw) {
   const startDate = raw.startDate || raw.adCreationTime || raw.start_date || '';
   const daysRunning = startDate
-    ? Math.floor((Date.now() - new Date(startDate).getTime()) / 86400000)
+    ? Math.max(0, Math.floor((Date.now() - new Date(startDate).getTime()) / 86400000))
     : 0;
 
   return {
@@ -92,10 +109,9 @@ function normalizeAd(raw) {
     isVideo:
       !!raw.snapshot?.cards?.[0]?.videoHdUrl ||
       (raw.snapshot?.videos?.length > 0) ||
-      raw.contentType === 'VIDEO' ||
-      raw.ad_creative_link_captions?.includes('video'),
+      raw.contentType === 'VIDEO',
     status: raw.isActive || raw.is_active || raw.adActiveStatus === 'ACTIVE' ? 'active' : 'inactive',
-    daysRunning: Math.max(0, daysRunning),
+    daysRunning,
     adCount: raw.adCount || raw.total_ads_count || raw.collationCount || 1,
     platforms: normalizePlatforms(raw.publisherPlatform || raw.publisher_platform),
     language: (raw.languageCode || raw.language_code || 'PT').toUpperCase(),
