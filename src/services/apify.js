@@ -46,17 +46,16 @@ function buildAdLibraryUrl({ query = '', country = 'BR' } = {}) {
 export async function searchAds({ query = '', country = 'BR', limit = 20 } = {}) {
   const adLibraryUrl = buildAdLibraryUrl({ query, country });
 
-  // Inicia o run e aguarda no máx. 45s server-side
-  // Actor leva ~11s só de startup — 45s garante coleta de ~50-100 ads antes do abort
-  const { data: run } = await apiFetch(
+  console.log('[HyperAds] Iniciando busca:', { query, country, limit, url: adLibraryUrl });
+
+  // Inicia o run — waitForFinish=45 aguarda server-side, retorna o run ao fim
+  const startResp = await apiFetch(
     `/acts/${ACTOR}/runs?waitForFinish=45`,
     {
       method: 'POST',
       body: JSON.stringify({
-        // Tentamos os dois formatos de URL que o actor pode aceitar
-        startUrls: [{ url: adLibraryUrl }],
         urls: [{ url: adLibraryUrl }],
-        // Limite pelos três nomes de campo possíveis
+        startUrls: [{ url: adLibraryUrl }],
         totalRecordsRequired: limit,
         limitPerUrl: limit,
         maxResults: limit,
@@ -65,26 +64,51 @@ export async function searchAds({ query = '', country = 'BR', limit = 20 } = {})
     }
   );
 
-  const runId = run.id;
-  const datasetId = run.defaultDatasetId;
+  // O run pode estar em startResp.data ou direto em startResp
+  const run = startResp?.data ?? startResp;
+  const runId = run?.id;
+  const datasetId = run?.defaultDatasetId;
 
-  // Se ainda estiver rodando após 20s → aborta imediatamente para parar o custo
-  if (run.status === 'RUNNING' || run.status === 'READY') {
+  console.log('[HyperAds] Run status:', run?.status, '| runId:', runId, '| datasetId:', datasetId);
+
+  // Aborta se ainda estiver rodando
+  if (run?.status === 'RUNNING' || run?.status === 'READY') {
+    console.log('[HyperAds] Abortando run para conter custos...');
     await abortRun(runId);
+    // Aguarda 2s para Apify persistir os dados coletados antes do abort
+    await new Promise(r => setTimeout(r, 2000));
   }
 
-  // Apify retorna array direto — NÃO é { items: [...] }
+  if (!datasetId) {
+    throw new Error('Não foi possível obter o dataset da busca. Tente novamente.');
+  }
+
+  // Sem clean=true — evita filtrar itens com campos raiz vazios
+  // Sem limit na query — buscamos tudo e limitamos em JS
   const raw = await apiFetch(
-    `/datasets/${datasetId}/items?clean=true&format=json&limit=${limit}`
+    `/datasets/${datasetId}/items?format=json`
   );
 
-  const items = Array.isArray(raw) ? raw : (raw?.items || []);
-  const results = items.map(normalizeAd);
+  console.log('[HyperAds] Resposta dataset — tipo:', typeof raw, '| isArray:', Array.isArray(raw),
+    '| length:', Array.isArray(raw) ? raw.length : raw?.items?.length ?? '?');
+
+  // Apify retorna array direto OU { items: [...] } dependendo da versão
+  const allItems = Array.isArray(raw)
+    ? raw
+    : Array.isArray(raw?.items) ? raw.items : [];
+
+  console.log('[HyperAds] Total itens lidos:', allItems.length);
+
+  // Pega os primeiros N
+  const sliced = allItems.slice(0, limit);
+  const results = sliced.map(normalizeAd);
+
+  console.log('[HyperAds] Resultados após normalização:', results.length);
 
   if (results.length === 0) {
     throw new Error(
-      'Nenhum resultado encontrado para este termo. ' +
-      'Tente palavras diferentes (ex: "curso ingles", "emagrecimento", "tráfego pago").'
+      `Nenhum resultado encontrado para "${query}". ` +
+      'Tente outro termo (ex: "curso ingles", "emagrecimento", "tráfego pago").'
     );
   }
 
