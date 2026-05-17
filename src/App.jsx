@@ -18,7 +18,7 @@ export default function App() {
         onTabChange={tab => { setActiveTab(tab); setSearch(''); }}
       />
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
-        {activeTab === 'feed' && <FeedPage search={search} />}
+        {activeTab === 'feed' && <FeedPage search={search} onTabChange={tab => { setActiveTab(tab); setSearch(''); }} />}
         {activeTab === 'analytics' && <AnalyticsPage />}
         {activeTab === 'settings' && <SettingsPage />}
       </main>
