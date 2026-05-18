@@ -8,8 +8,7 @@ import SkeletonCard from '../components/SkeletonCard';
 import { mockAds, statsData } from '../data/mockAds';
 import { searchAds, getToken } from '../services/apify';
 
-const LIMIT_OPTIONS = [10, 20, 30, 50];
-const MIN_ADS_DEFAULT = 0; // sem filtro padrão — o campo collation_count é quase sempre 1
+const MIN_ADS_DEFAULT = 0;
 
 const defaultFilters = {
   daysMin: '', daysMax: '',
@@ -81,7 +80,6 @@ export default function FeedPage({ search, onTabChange, isFav, onToggleFav }) {
   const [selectedAd, setSelectedAd] = useState(null);
   const [sortBy, setSortBy] = useState('adCount');
   const [searchQuery, setSearchQuery] = useState('');
-  const [limit, setLimit] = useState(20);
 
   const handleSearch = async () => {
     if (!searchQuery.trim()) return;
@@ -100,12 +98,8 @@ export default function FeedPage({ search, onTabChange, isFav, onToggleFav }) {
       const results = await searchAds({
         query: searchQuery.trim(),
         country: 'BR',
-        limit,
-        minAds: +filters.adsMin || MIN_ADS_DEFAULT,
       });
-      // Filtra server-side por minAds para garantir
-      const minAds = +filters.adsMin || MIN_ADS_DEFAULT;
-      setAds(results.filter(a => a.adCount >= minAds));
+      setAds(results);
     } catch (e) {
       setError(e.message);
       setAds([]);
@@ -171,21 +165,6 @@ export default function FeedPage({ search, onTabChange, isFav, onToggleFav }) {
           />
         </div>
 
-        {/* Limite de resultados — só no modo real */}
-        {hasToken && (
-          <select
-            value={limit}
-            onChange={e => setLimit(+e.target.value)}
-            title="Limite de anúncios buscados (afeta custo)"
-            className="px-3 py-2 rounded-xl border border-gray-200 bg-white text-sm font-semibold
-              text-gray-700 focus:outline-none shadow-sm cursor-pointer shrink-0"
-          >
-            {LIMIT_OPTIONS.map(n => (
-              <option key={n} value={n}>{n} anúncios</option>
-            ))}
-          </select>
-        )}
-
         <button
           onClick={handleSearch}
           disabled={loading || !searchQuery.trim()}
@@ -249,7 +228,7 @@ export default function FeedPage({ search, onTabChange, isFav, onToggleFav }) {
       {/* Feed grid */}
       {loading ? (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-          {Array.from({ length: limit > 10 ? 8 : 4 }).map((_, i) => <SkeletonCard key={i} />)}
+          {Array.from({ length: 8 }).map((_, i) => <SkeletonCard key={i} />)}
         </div>
       ) : !hasSearched ? (
         <EmptyState hasToken={hasToken} onTabChange={onTabChange} />

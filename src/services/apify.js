@@ -109,9 +109,9 @@ export async function searchAds({ query = '', country = 'BR', limit = 20 } = {})
     console.log('[HyperAds] snapshot.cards:', JSON.stringify(first.snapshot?.cards?.slice(0, 1) ?? null));
   }
 
-  // Pega os primeiros N
-  const sliced = allItems.slice(0, limit);
-  const results = sliced.map(normalizeAd);
+  // Usa TODOS os itens coletados — já pagamos por eles, não faz sentido descartar
+  // O limite de exibição é controlado no frontend (FilterPanel / slice no FeedPage)
+  const results = allItems.map(normalizeAd);
 
   console.log('[HyperAds] Resultados após normalização:', results.length);
 
