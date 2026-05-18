@@ -148,51 +148,38 @@ function normalizeAd(raw) {
 
   const id = raw.ad_archive_id || raw.adArchiveID || raw.id || String(Math.random());
 
-  // Copy: snapshot tem o texto real; sem snapshot, usa campos flat
+  // Copy: snapshot.body.text é o campo canônico do actor
   const copyText =
     raw.snapshot?.body?.text ||
     raw.snapshot?.cards?.[0]?.body ||
+    raw.snapshot?.title ||
     raw.ad_creative_body ||
     raw.body ||
     '';
 
-  // Thumbnail: cobre camelCase E snake_case (actor retorna snake_case)
+  // Thumbnail: schema confirmado — actor usa snake_case
+  // Ordem: images[] > videos[].preview > cards[] > fallback
   const thumbnail =
-    // cards (carrossel)
-    raw.snapshot?.cards?.[0]?.resizedImageUrl ||
-    raw.snapshot?.cards?.[0]?.resized_image_url ||
-    raw.snapshot?.cards?.[0]?.originalImageUrl ||
-    raw.snapshot?.cards?.[0]?.original_image_url ||
-    raw.snapshot?.cards?.[0]?.imageUrl ||
-    raw.snapshot?.cards?.[0]?.image_url ||
-    // images array
-    raw.snapshot?.images?.[0]?.resizedImageUrl ||
-    raw.snapshot?.images?.[0]?.resized_image_url ||
-    raw.snapshot?.images?.[0]?.originalImageUrl ||
+    // images[] (anúncios de imagem)
     raw.snapshot?.images?.[0]?.original_image_url ||
-    raw.snapshot?.images?.[0]?.url ||
-    // videos — preview still
-    raw.snapshot?.videos?.[0]?.videoPreviewImageUrl ||
+    raw.snapshot?.images?.[0]?.resized_image_url ||
+    raw.snapshot?.images?.[0]?.watermarked_resized_image_url ||
+    // videos[] — poster frame (anúncios de vídeo)
     raw.snapshot?.videos?.[0]?.video_preview_image_url ||
-    raw.snapshot?.videos?.[0]?.previewImageUrl ||
-    raw.snapshot?.videos?.[0]?.preview_image_url ||
-    // campo image direto no snapshot (alguns actors)
-    raw.snapshot?.image?.uri ||
-    raw.snapshot?.imageUri ||
-    raw.snapshot?.image_uri ||
-    // campos flat no root
+    // cards[] — carrossel (only original_image_url at card level)
+    raw.snapshot?.cards?.[0]?.original_image_url ||
+    // extra_images[]
+    raw.snapshot?.extra_images?.[0]?.original_image_url ||
+    raw.snapshot?.extra_images?.[0]?.resized_image_url ||
+    // campos flat no root (fallback para actors sem snapshot)
     raw.image_url ||
     raw.creative_media_url ||
-    raw.ad_creative_image_url ||
     `https://picsum.photos/seed/${id}/400/300`;
 
   const isVideo =
-    !!(raw.snapshot?.cards?.[0]?.videoHdUrl ||
-       raw.snapshot?.cards?.[0]?.video_hd_url ||
-       raw.snapshot?.cards?.[0]?.videoSdUrl ||
-       raw.snapshot?.cards?.[0]?.video_sd_url) ||
     (raw.snapshot?.videos?.length > 0) ||
-    raw.ad_creative_link_captions?.includes?.('video');
+    !!(raw.snapshot?.videos?.[0]?.video_hd_url || raw.snapshot?.videos?.[0]?.video_sd_url) ||
+    raw.snapshot?.display_format === 'VIDEO';
 
   return {
     id,
@@ -221,8 +208,8 @@ function normalizeAd(raw) {
     copy: copyText,
     fullCopy: copyText,
     salesPageUrl:
-      raw.snapshot?.cards?.[0]?.linkUrl ||
       raw.snapshot?.link_url ||
+      raw.snapshot?.cards?.[0]?.link_url ||
       raw.website_url || '#',
     adLibraryUrl:
       raw.ad_library_url ||

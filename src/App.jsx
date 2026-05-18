@@ -21,23 +21,28 @@ export default function App() {
         favCount={favorites.length}
       />
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
-        {activeTab === 'feed' && (
+        {/* Páginas são mantidas montadas — só escondidas via CSS para preservar estado */}
+        <div className={activeTab === 'feed' ? '' : 'hidden'}>
           <FeedPage
             search=""
             onTabChange={handleTabChange}
             isFav={isFav}
             onToggleFav={toggle}
           />
-        )}
-        {activeTab === 'favorites' && (
+        </div>
+        <div className={activeTab === 'favorites' ? '' : 'hidden'}>
           <FavoritesPage
             favorites={favorites}
             onToggleFav={toggle}
             isFav={isFav}
           />
-        )}
-        {activeTab === 'analytics' && <AnalyticsPage />}
-        {activeTab === 'settings' && <SettingsPage />}
+        </div>
+        <div className={activeTab === 'analytics' ? '' : 'hidden'}>
+          <AnalyticsPage />
+        </div>
+        <div className={activeTab === 'settings' ? '' : 'hidden'}>
+          <SettingsPage />
+        </div>
       </main>
     </div>
   );
