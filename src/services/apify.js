@@ -99,6 +99,16 @@ export async function searchAds({ query = '', country = 'BR', limit = 20 } = {})
 
   console.log('[HyperAds] Total itens lidos:', allItems.length);
 
+  // Log do primeiro item bruto — para depurar campos disponíveis
+  if (allItems[0]) {
+    const first = allItems[0];
+    console.log('[HyperAds] Primeiro item (keys):', Object.keys(first));
+    console.log('[HyperAds] snapshot keys:', first.snapshot ? Object.keys(first.snapshot) : 'sem snapshot');
+    console.log('[HyperAds] snapshot.images:', JSON.stringify(first.snapshot?.images ?? first.snapshot?.image ?? null));
+    console.log('[HyperAds] snapshot.videos:', JSON.stringify(first.snapshot?.videos ?? first.snapshot?.video ?? null));
+    console.log('[HyperAds] snapshot.cards:', JSON.stringify(first.snapshot?.cards?.slice(0, 1) ?? null));
+  }
+
   // Pega os primeiros N
   const sliced = allItems.slice(0, limit);
   const results = sliced.map(normalizeAd);
@@ -146,18 +156,41 @@ function normalizeAd(raw) {
     raw.body ||
     '';
 
-  // Thumbnail: prioriza snapshot, depois campos flat
+  // Thumbnail: cobre camelCase E snake_case (actor retorna snake_case)
   const thumbnail =
+    // cards (carrossel)
     raw.snapshot?.cards?.[0]?.resizedImageUrl ||
+    raw.snapshot?.cards?.[0]?.resized_image_url ||
     raw.snapshot?.cards?.[0]?.originalImageUrl ||
+    raw.snapshot?.cards?.[0]?.original_image_url ||
+    raw.snapshot?.cards?.[0]?.imageUrl ||
+    raw.snapshot?.cards?.[0]?.image_url ||
+    // images array
     raw.snapshot?.images?.[0]?.resizedImageUrl ||
+    raw.snapshot?.images?.[0]?.resized_image_url ||
+    raw.snapshot?.images?.[0]?.originalImageUrl ||
+    raw.snapshot?.images?.[0]?.original_image_url ||
+    raw.snapshot?.images?.[0]?.url ||
+    // videos — preview still
     raw.snapshot?.videos?.[0]?.videoPreviewImageUrl ||
+    raw.snapshot?.videos?.[0]?.video_preview_image_url ||
+    raw.snapshot?.videos?.[0]?.previewImageUrl ||
+    raw.snapshot?.videos?.[0]?.preview_image_url ||
+    // campo image direto no snapshot (alguns actors)
+    raw.snapshot?.image?.uri ||
+    raw.snapshot?.imageUri ||
+    raw.snapshot?.image_uri ||
+    // campos flat no root
     raw.image_url ||
     raw.creative_media_url ||
+    raw.ad_creative_image_url ||
     `https://picsum.photos/seed/${id}/400/300`;
 
   const isVideo =
-    !!(raw.snapshot?.cards?.[0]?.videoHdUrl || raw.snapshot?.cards?.[0]?.videoSdUrl) ||
+    !!(raw.snapshot?.cards?.[0]?.videoHdUrl ||
+       raw.snapshot?.cards?.[0]?.video_hd_url ||
+       raw.snapshot?.cards?.[0]?.videoSdUrl ||
+       raw.snapshot?.cards?.[0]?.video_sd_url) ||
     (raw.snapshot?.videos?.length > 0) ||
     raw.ad_creative_link_captions?.includes?.('video');
 
@@ -169,7 +202,10 @@ function normalizeAd(raw) {
       raw.snapshot?.page_profile_uri || raw.pageProfileUri || raw.page_profile_uri || '#',
     advertiserAvatar:
       raw.snapshot?.page_profile_picture_url ||
+      raw.snapshot?.pageProfilePictureUrl ||
+      raw.snapshot?.pageProfilePictureURL ||
       raw.pageProfilePictureURL ||
+      raw.page_profile_picture_url ||
       `https://i.pravatar.cc/40?u=${id}`,
     thumbnail,
     isVideo,
