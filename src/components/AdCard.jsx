@@ -1,4 +1,4 @@
-import { Play, Clock, Layers, ExternalLink, Eye } from 'lucide-react';
+import { Play, Clock, Layers, ExternalLink, Eye, Heart, Download } from 'lucide-react';
 
 const IgIcon = () => (
   <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor">
@@ -20,8 +20,25 @@ function PlatformIcon({ platform }) {
   return null;
 }
 
-export default function AdCard({ ad, onDetails, size = 'normal' }) {
+async function downloadImage(url, filename) {
+  try {
+    const res = await fetch(url, { mode: 'cors' });
+    const blob = await res.blob();
+    const blobUrl = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = blobUrl;
+    a.download = filename || 'ad-image.jpg';
+    a.click();
+    URL.revokeObjectURL(blobUrl);
+  } catch {
+    // Se CORS bloquear, abre em nova aba
+    window.open(url, '_blank');
+  }
+}
+
+export default function AdCard({ ad, onDetails, size = 'normal', isFav = false, onToggleFav }) {
   const isLarge = size === 'large';
+  const adId = ad.id || '';
 
   return (
     <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden
@@ -34,6 +51,7 @@ export default function AdCard({ ad, onDetails, size = 'normal' }) {
           alt={ad.advertiserName}
           className="w-full h-full object-cover"
           loading="lazy"
+          onError={e => { e.target.src = `https://picsum.photos/seed/${adId}/400/300`; }}
         />
         {ad.isVideo && (
           <div className="absolute inset-0 flex items-center justify-center">
@@ -42,22 +60,46 @@ export default function AdCard({ ad, onDetails, size = 'normal' }) {
             </div>
           </div>
         )}
+
         {/* Status badge */}
         <div className="absolute top-3 left-3">
           <span className={`px-2.5 py-1 rounded-full text-xs font-bold ${
-            ad.status === 'active'
-              ? 'bg-green-100 text-green-700'
-              : 'bg-gray-200 text-gray-600'
+            ad.status === 'active' ? 'bg-green-100 text-green-700' : 'bg-gray-200 text-gray-600'
           }`}>
             {ad.status === 'active' ? 'Ativo' : 'Inativo'}
           </span>
         </div>
+
         {/* Type badge */}
         <div className="absolute top-3 right-3">
           <span style={{ backgroundColor: '#F5C400' }}
             className="px-2.5 py-1 rounded-full text-xs font-bold text-black">
             {ad.isVideo ? 'Vídeo' : 'Imagem'}
           </span>
+        </div>
+
+        {/* Top-right action buttons */}
+        <div className="absolute bottom-3 right-3 flex gap-1.5">
+          {/* Download */}
+          {ad.thumbnail && !ad.thumbnail.includes('picsum') && (
+            <button
+              onClick={e => { e.stopPropagation(); downloadImage(ad.thumbnail, `hyperads-${adId}.jpg`); }}
+              title="Baixar imagem"
+              className="w-8 h-8 rounded-xl bg-black/50 backdrop-blur-sm flex items-center justify-center
+                text-white hover:bg-black/70 transition-all"
+            >
+              <Download size={13} />
+            </button>
+          )}
+          {/* Favorito */}
+          <button
+            onClick={e => { e.stopPropagation(); onToggleFav?.(ad); }}
+            title={isFav ? 'Remover dos favoritos' : 'Favoritar'}
+            className="w-8 h-8 rounded-xl bg-black/50 backdrop-blur-sm flex items-center justify-center
+              text-white hover:bg-black/70 transition-all"
+          >
+            <Heart size={13} fill={isFav ? 'white' : 'none'} />
+          </button>
         </div>
       </div>
 
@@ -66,7 +108,8 @@ export default function AdCard({ ad, onDetails, size = 'normal' }) {
         {/* Advertiser */}
         <div className="flex items-center gap-2 mb-3">
           <img src={ad.advertiserAvatar} alt={ad.advertiserName}
-            className="w-8 h-8 rounded-full object-cover border-2 border-gray-100" />
+            className="w-8 h-8 rounded-full object-cover border-2 border-gray-100"
+            onError={e => { e.target.src = `https://i.pravatar.cc/40?u=${adId}`; }} />
           <div className="min-w-0">
             <p className="text-sm font-bold text-gray-900 truncate">{ad.advertiserName}</p>
             <p className="text-xs text-gray-400">{ad.gateway} · {ad.productType}</p>
@@ -91,7 +134,7 @@ export default function AdCard({ ad, onDetails, size = 'normal' }) {
             <span className="font-semibold text-gray-700">{ad.adCount}</span> anúncios
           </div>
           <div className="w-px h-3 bg-gray-200" />
-          <span className="font-medium" style={{ color: '#6B7280' }}>{ad.language}</span>
+          <span className="font-medium text-gray-500">{ad.language}</span>
         </div>
 
         {/* Actions */}

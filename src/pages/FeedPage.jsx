@@ -8,7 +8,7 @@ import SkeletonCard from '../components/SkeletonCard';
 import { mockAds, statsData } from '../data/mockAds';
 import { searchAds, getToken } from '../services/apify';
 
-const LIMIT_OPTIONS = [20, 30, 50];
+const LIMIT_OPTIONS = [10, 20, 30, 50];
 const MIN_ADS_DEFAULT = 0; // sem filtro padrão — o campo collation_count é quase sempre 1
 
 const defaultFilters = {
@@ -69,7 +69,7 @@ function EmptyState({ hasToken, onTabChange }) {
   );
 }
 
-export default function FeedPage({ search, onTabChange }) {
+export default function FeedPage({ search, onTabChange, isFav, onToggleFav }) {
   const hasToken = Boolean(getToken());
 
   // Sem auto-load: feed começa vazio
@@ -199,16 +199,6 @@ export default function FeedPage({ search, onTabChange }) {
         </button>
       </div>
 
-      {/* Aviso custo — só no modo real */}
-      {hasToken && (
-        <div className="flex items-center gap-2 px-4 py-2 rounded-xl mb-4 text-xs font-medium"
-          style={{ backgroundColor: '#F5F5F0', color: '#6B7280' }}>
-          <AlertCircle size={12} />
-          Busca abortada em <strong className="text-gray-800">45s</strong> para controlar custo
-          {' '}· Exibe até <strong className="text-gray-800">{limit} anúncios</strong>
-          {' '}· Custo máx. estimado: <strong className="text-gray-800">~$0.08</strong> por busca
-        </div>
-      )}
 
       {/* Mock mode badge */}
       {!hasToken && (
@@ -290,6 +280,8 @@ export default function FeedPage({ search, onTabChange }) {
               ad={ad}
               onDetails={setSelectedAd}
               size={i === 0 || i === 5 ? 'large' : 'normal'}
+              isFav={isFav?.(ad.id)}
+              onToggleFav={onToggleFav}
             />
           ))}
         </div>
