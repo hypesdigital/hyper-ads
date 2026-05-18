@@ -152,7 +152,7 @@ export default function FeedPage({ search, onTabChange, isFav, onToggleFav }) {
 
   return (
     <>
-      <StatsBar stats={hasSearched ? stats : statsData} />
+      <StatsBar stats={hasSearched ? stats : { totalAds: 0, activeAds: 0, avgDaysRunning: 0, topGateway: '—' }} />
 
       {/* Search bar principal */}
       <div className="flex gap-2 mb-4">
